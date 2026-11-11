@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Morpion · À deux</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #243b35; background: #f5f3eb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 28px 20px; }
+    main { width: min(100%, 440px); text-align: center; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .2em; font-size: 11px; font-weight: 750; color: #718078; }
+    h1 { font-size: clamp(44px, 10vw, 64px); letter-spacing: -.06em; margin: 12px 0 8px; line-height: 1.1; }
+    .subtitle { margin: 0; color: #748078; font-size: 15px; }
+    .players { display: flex; justify-content: center; gap: 12px; margin: 30px 0 18px; }
+    .player { border: 1px solid #dedfd5; border-radius: 100px; padding: 9px 17px; font-size: 13px; color: #748078; transition: background .15s; }
+    .player strong { margin-right: 8px; font-size: 16px; }
+    .player.active { background: #e2eadd; border-color: #a6ba9d; color: #284d38; }
+    .player[data-player="O"].active { background: #f3e2d6; border-color: #d4b59d; color: #a55f3c; }
+    .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #e6e7dc; padding: 10px; border-radius: 25px; box-shadow: 0 14px 35px #253b3510; }
+    .cell { aspect-ratio: 1; border: 0; border-radius: 15px; background: #fffef8; font: 550 clamp(42px, 12vw, 65px)/1 system-ui, sans-serif; color: #3c684d; cursor: pointer; transition: background .15s, transform .15s; -webkit-tap-highlight-color: transparent; }
+    .cell:not(:disabled):hover { background: #edf2e6; transform: translateY(-2px); }
+    .cell.o { color: #b77650; }
+    .cell.winner { background: #dbe9cb; }
+    .cell:disabled { cursor: default; opacity: 1; }
+    button:focus-visible { outline: 3px solid #b77650; outline-offset: 4px; }
+    #status { font-size: 18px; font-weight: 650; min-height: 27px; margin: 25px 0 18px; }
+    .restart { width: 100%; border: 0; border-radius: 14px; padding: 17px 22px; background: #294d3c; color: #fffef8; font: 600 15px system-ui, sans-serif; cursor: pointer; }
+    .restart:hover { background: #386149; }
+    .hint { font-size: 12px; line-height: 1.6; color: #848a80; margin: 22px 0 0; }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Un écran · Deux joueurs</div>
+    <h1>Morpion<span style="color:#b77650">.</span></h1>
+    <p class="subtitle">Un petit duel, chacun son tour.</p>
+    <div class="players" aria-label="Les joueurs">
+      <div class="player active" data-player="X"><strong>X</strong> Joueur 1</div>
+      <div class="player" data-player="O"><strong>O</strong> Joueur 2</div>
+    </div>
+    <div class="board" role="group" aria-label="Grille de morpion, 3 lignes et 3 colonnes" aria-describedby="status">
+      <button class="cell" type="button" aria-label="Ligne 1, colonne 1, vide"></button>
+      <button class="cell" type="button" aria-label="Ligne 1, colonne 2, vide"></button>
+      <button class="cell" type="button" aria-label="Ligne 1, colonne 3, vide"></button>
+      <button class="cell" type="button" aria-label="Ligne 2, colonne 1, vide"></button>
+      <button class="cell" type="button" aria-label="Ligne 2, colonne 2, vide"></button>
+      <button class="cell" type="button" aria-label="Ligne 2, colonne 3, vide"></button>
+      <button class="cell" type="button" aria-label="Ligne 3, colonne 1, vide"></button>
+      <button class="cell" type="button" aria-label="Ligne 3, colonne 2, vide"></button>
+      <button class="cell" type="button" aria-label="Ligne 3, colonne 3, vide"></button>
+    </div>
+    <p id="status" role="status" aria-live="polite" aria-atomic="true">Au tour de X</p>
+    <button class="restart" type="button">Nouvelle partie</button>
+    <p class="hint">Alignez 3 symboles pour gagner.<br>En ligne, en colonne ou en diagonale.</p>
+  </main>
+  <script>
+    const cells = Array.from(document.querySelectorAll('.cell'));
+    const players = Array.from(document.querySelectorAll('.player'));
+    const status = document.getElementById('status');
+    const winningLines = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8],
+      [0, 3, 6], [1, 4, 7], [2, 5, 8],
+      [0, 4, 8], [2, 4, 6]
+    ];
+    let board = Array(9).fill('');
+    let currentPlayer = 'X';
+    let finished = false;
+
+    function updatePlayers() {
+      players.forEach(player => {
+        player.classList.toggle('active', !finished && player.dataset.player === currentPlayer);
+      });
+    }
+
+    function play(index) {
+      if (finished || board[index]) return;
+      board[index] = currentPlayer;
+      const cell = cells[index];
+      cell.textContent = currentPlayer;
+      cell.classList.toggle('o', currentPlayer === 'O');
+      cell.setAttribute('aria-label', `Ligne ${Math.floor(index / 3) + 1}, colonne ${index % 3 + 1}, ${currentPlayer}`);
+      cell.disabled = true;
+
+      const winningLine = winningLines.find(line => line.every(position => board[position] === currentPlayer));
+      if (winningLine) {
+        finished = true;
+        status.textContent = `${currentPlayer} remporte la partie !`;
+        winningLine.forEach(position => cells[position].classList.add('winner'));
+      } else if (board.every(Boolean)) {
+        finished = true;
+        status.textContent = 'Match nul !';
+      } else {
+        currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+        status.textContent = `Au tour de ${currentPlayer}`;
+      }
+      if (finished) cells.forEach(cell => { cell.disabled = true; });
+      updatePlayers();
+    }
+
+    function restart() {
+      board = Array(9).fill('');
+      currentPlayer = 'X';
+      finished = false;
+      cells.forEach((cell, index) => {
+        cell.textContent = '';
+        cell.classList.remove('o', 'winner');
+        cell.disabled = false;
+        cell.setAttribute('aria-label', `Ligne ${Math.floor(index / 3) + 1}, colonne ${index % 3 + 1}, vide`);
+      });
+      status.textContent = 'Au tour de X';
+      updatePlayers();
+    }
+
+    cells.forEach((cell, index) => cell.addEventListener('click', () => play(index)));
+    document.querySelector('.restart').addEventListener('click', restart);
+  </script>
+</body>
+</html>
